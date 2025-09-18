@@ -1,4 +1,4 @@
-
+import Pyro5.api
 
 while True:
     opcao = input("Selecione a opcao desejada: \n 1. Solicitar recurso \n 2. Listar peers ativos \n 3. Liberar recurso \n 4. Sair \n")
@@ -12,4 +12,4 @@ while True:
         exit()
     else:
         print("opcao invalida")
-        
+    
