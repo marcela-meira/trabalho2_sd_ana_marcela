@@ -1,3 +1,4 @@
+
 ''' Para iniciar o servidor no terminal usar:
     python -m Pyro5.nameserver
 '''
@@ -19,9 +20,27 @@ ns = Pyro5.api.locate_ns()             # find the name server
 if name not in ns.list().keys():
     uri = daemon.register(Peer)   # register the greeting maker as a Pyro object
     ns.register(name, uri)   # register the object with a name in the name server
-
+state="RELEASED"
 print("Ready.")
 threading.Thread(target=daemon.requestLoop, daemon=True).start()    # start the event loop of the server to wait for calls
+
+def solicitar_recurso(resource):
+    state="WANTED"
+    #Mandar msg pra cada peer, exceto pra ele próprio
+    contador=0
+    for peer in ns.list().keys():
+        uri=ns.lookup(peer)
+        peer=Pyro5.api.Proxy(uri)
+        if peer.state=="WANTED" | peer.state=="HELD":
+            return False
+        else:
+            contador+=1
+        peer.load_message("I want to enter the critical section and access resource {resource} ")
+    if contador == ns.count()-1:
+        return True
+
+
+    
 
 while True:
     opcao = input(
@@ -33,7 +52,9 @@ while True:
     )
 
     if opcao == "1":
-        print("Solicitar recurso")
+        print("Solicitar recurso\n")
+        resource=input("Qual recurso?")
+        solicitar_recurso(resource)
     elif opcao == "2":
         print("Listar peers ativos")
         print(ns.list())  # exemplo: mostra peers registrados
@@ -45,4 +66,6 @@ while True:
         break
     else:
         print("Opção inválida")
+    
+
     
