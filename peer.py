@@ -53,8 +53,8 @@ class Peer(object):
 
             print(f"Solicitando recurso para {peer_name}")
             resposta=peer.receber_pedido(self.name, self.my_request_timestamp)
-            self.response_time = threading.Timer(RESPONSE_MAX_TIME,self.remover_processo, args=[peer_name])
-            self.response_time.start()
+            #self.response_time = threading.Timer(RESPONSE_MAX_TIME,self.remover_processo, args=[peer_name])
+            #self.response_time.start()
             # Threading Semáforo ou Event ??
             if resposta==True:
                 contador+=1
@@ -63,15 +63,19 @@ class Peer(object):
 
         if contador == len(ns.list())-1:
             print(f"\nVocê pode acessar o recurso")
-            self.state="HELD"            
+            self.state="HELD"    
+            #usar_recurso()        
             return True
         
     def receber_pedido(self, requester_name, request_timestamp):
+        print(f"Solicitação recebida de {requester_name}")
         if (self.state=="WANTED" and self.my_request_timestamp < request_timestamp) or self.state=="HELD":
             self.request_queue.append((requester_name, request_timestamp))
             self.request_queue.sort(key=lambda x: (x[1], x[0]))
+            print("\nSolicitação não aprovada")
             return False
         else:
+           print("\nSolicitação aprovada")
            return True
         
     def liberar_recurso(self):
@@ -134,5 +138,7 @@ def main():
         
 if __name__ == "__main__":
     main()
+    
+
     
 
