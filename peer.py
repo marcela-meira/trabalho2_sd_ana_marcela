@@ -25,12 +25,16 @@ class Peer(object):
         return "Hello, {0}. Here is your fortune message:\n" \
                "Tomorrow's lucky number is 12345678.".format(name)"""
     
+    def usar_recurso(self):
+        self.resource_time = threading.Timer(RESOURCE_MAX_TIME,self.liberar_recurso)
+        self.resource_time.start()
+
     def solicitar_recurso(self):
         with self.lock:
             self.state="WANTED"
             self.my_request_timestamp=time.time()
         print(f"I want to enter the critical section and access resource")
-        #Mandar msg pra cada peer, exceto pra ele próprio
+        # Mandar msg pra cada peer, exceto pra ele próprio
         contador=0
         ns = Pyro5.api.locate_ns()  
         
@@ -63,8 +67,13 @@ class Peer(object):
         
     def liberar_recurso(self):
         with self.lock:
+            if self.resource_time and self.resource.time.is_alive():
+                self.resource_time.cancel()
+                print(f"Timer de liberação automática cancelado")
+
             self.state="RELEASED"
             self.my_request_timestamp=0
+            print(f"Recurso liberado. Respondendo à fila.")
 
         ns = Pyro5.api.locate_ns()  
         for requester_name,_ in self.request_queue:
