@@ -1,5 +1,4 @@
 
-
 ''' Para iniciar o servidor no terminal usar:
     python -m Pyro5.nameserver
 '''
@@ -12,6 +11,20 @@ import time
 RESOURCE_MAX_TIME=10  #ACHO Q DA P GENTE USAR ESSA MACRO P CONTROLAR O TEMPO DO RECURSO NA SEÇÃO CRÍTICA
 RESPONSE_MAX_TIME=20
 
+''' PROBLEMA ATUAL: quando solicita um recurso os peers ficam travados, nunca retornando ao menu principal
+    Segundo Gemini: Em resumo, a lógica atual cria um ciclo de espera: o Peer8 solicita, o PeerA recebe e aprova, 
+    mas o PeerA fica travado esperando algo. Quando o Peer8 libera o recurso, ele tenta "despertar" o PeerA chamando solicitar_recurso(),
+    o que só agrava o impasse. A solução é que o PeerA receba uma notificação simples, permitindo que ele mesmo, de forma independente, continue seu processo.
+    Acho que é aquela lógica que a gente tinha visto antes no chat de enviar um 'OK' e o próprio peer chamar seus métodos e não um peer chamar remotamente o 
+    método para o outro.
+'''
+
+''' thread pra escutar heartbeat - time.tempo_atual menos ultimo heartbeat se for maior que temporizador = nó falhou (fazer para todos os peers)
+    alternativa: ter um threading timer que ativa a checagem acima de tempos em tempos
+                marca quando recebe e de quem o heartbeat
+                timer checa no tempo (temporizador + uns ms) se recebeu de todos
+'''
+
 @Pyro5.api.expose
 class Peer(object):
     def __init__(self,name):
@@ -23,6 +36,7 @@ class Peer(object):
         self.response_time=0
         self.request_queue = []
         self.lock = threading.Lock()
+        self.peers_ativos = []
 
     """def get_fortune(self, name):
         return "Hello, {0}. Here is your fortune message:\n" \
@@ -32,9 +46,9 @@ class Peer(object):
         self.resource_time = threading.Timer(RESOURCE_MAX_TIME,self.liberar_recurso)
         self.resource_time.start()
 
-    def remover_processo(peer_name):
-        ns = Pyro5.api.locate_ns()  
-        ns.remove(peer_name)
+    def remover_processo(self,peer_name):
+        # O peer é removido da lista local de peers ativos
+        self.peers_ativos.remove(peer_name)
 
     def solicitar_recurso(self):
         with self.lock:
@@ -51,22 +65,25 @@ class Peer(object):
             uri=ns.lookup(peer_name)
             peer=Pyro5.api.Proxy(uri)
 
+            self.peers_ativos.append(peer_name)
+
             print(f"Solicitando recurso para {peer_name}")
             resposta=peer.receber_pedido(self.name, self.my_request_timestamp)
-            #self.response_time = threading.Timer(RESPONSE_MAX_TIME,self.remover_processo, args=[peer_name])
-            #self.response_time.start()
-            # Threading Semáforo ou Event ??
+            self.response_time = threading.Timer(RESPONSE_MAX_TIME,self.remover_processo, args=[peer_name])
+            self.response_time.start()
+
             if resposta==True:
                 contador+=1
             else:
                print(f"Você está na fila para acessar o recurso")  
 
-        if contador == len(ns.list())-1:
+        if contador == ns.count()-2:
             print(f"\nVocê pode acessar o recurso")
             self.state="HELD"    
-            #usar_recurso()        
+            self.usar_recurso()        
             return True
-        
+
+    # Colocar sleep para simular peer inativo
     def receber_pedido(self, requester_name, request_timestamp):
         print(f"Solicitação recebida de {requester_name}")
         if (self.state=="WANTED" and self.my_request_timestamp < request_timestamp) or self.state=="HELD":
@@ -77,10 +94,12 @@ class Peer(object):
         else:
            print("\nSolicitação aprovada")
            return True
+        ## Simulação de peer inativo
+        #time.sleep(30)
         
     def liberar_recurso(self):
         with self.lock:
-            if self.resource_time and self.resource.time.is_alive():
+            if self.resource_time and self.resource_time.is_alive():
                 self.resource_time.cancel()
                 print(f"Timer de liberação automática cancelado")
 
@@ -141,4 +160,3 @@ if __name__ == "__main__":
     
 
     
-
