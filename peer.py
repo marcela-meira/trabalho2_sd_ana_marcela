@@ -1,4 +1,5 @@
 
+
 ''' Para iniciar o servidor no terminal usar:
     python -m Pyro5.nameserver
 '''
@@ -9,6 +10,7 @@ import threading
 import time
 
 RESOURCE_MAX_TIME=10  #ACHO Q DA P GENTE USAR ESSA MACRO P CONTROLAR O TEMPO DO RECURSO NA SEÇÃO CRÍTICA
+RESPONSE_MAX_TIME=20
 
 @Pyro5.api.expose
 class Peer(object):
@@ -18,6 +20,7 @@ class Peer(object):
         self.resource_time=0
         self.timestamp=0
         self.my_request_timestamp = 0
+        self.response_time=0
         self.request_queue = []
         self.lock = threading.Lock()
 
@@ -28,6 +31,10 @@ class Peer(object):
     def usar_recurso(self):
         self.resource_time = threading.Timer(RESOURCE_MAX_TIME,self.liberar_recurso)
         self.resource_time.start()
+
+    def remover_processo(peer_name):
+        ns = Pyro5.api.locate_ns()  
+        ns.remove(peer_name)
 
     def solicitar_recurso(self):
         with self.lock:
@@ -46,6 +53,8 @@ class Peer(object):
 
             print(f"Solicitando recurso para {peer_name}")
             resposta=peer.receber_pedido(self.name, self.my_request_timestamp)
+            self.response_time = threading.Timer(RESPONSE_MAX_TIME,self.remover_processo, args=[peer_name])
+            self.response_time.start()
             # Threading Semáforo ou Event ??
             if resposta==True:
                 contador+=1
@@ -126,3 +135,4 @@ def main():
 if __name__ == "__main__":
     main()
     
+
