@@ -8,7 +8,7 @@ from Pyro5.server import Daemon
 import threading
 import time
 
-RESOURCE_MAX_TIME=10#ACHO Q DA P GENTE USAR ESSA MACRO P CONTROLAR O TEMPO DO RECURSO NA SEÇÃO CRÍTICA
+RESOURCE_MAX_TIME=10  #ACHO Q DA P GENTE USAR ESSA MACRO P CONTROLAR O TEMPO DO RECURSO NA SEÇÃO CRÍTICA
 
 @Pyro5.api.expose
 class Peer(object):
@@ -28,11 +28,11 @@ class Peer(object):
     def solicitar_recurso(self):
         with self.lock:
             self.state="WANTED"
+            self.my_request_timestamp=time.time()
         print(f"I want to enter the critical section and access resource")
         #Mandar msg pra cada peer, exceto pra ele próprio
         contador=0
         ns = Pyro5.api.locate_ns()  
-        #verificar isso aqui!
         
         for peer_name in list(ns.list().keys())[1:]:         
             if peer_name==self.name:
@@ -41,7 +41,8 @@ class Peer(object):
             peer=Pyro5.api.Proxy(uri)
 
             print(f"Solicitando recurso para {peer_name}")
-            resposta=peer.receber_pedido(self.name)
+            resposta=peer.receber_pedido(self.name, self.my_request_timestamp)
+            # Threading Semáforo ou Event ??
             if resposta==True:
                 contador+=1
             else:
@@ -66,7 +67,7 @@ class Peer(object):
             self.my_request_timestamp=0
 
         ns = Pyro5.api.locate_ns()  
-        for requester_name in self.request_queue:
+        for requester_name,_ in self.request_queue:
             uri = ns.lookup(requester_name)
             requester_proxy = Pyro5.api.Proxy(uri)
             print(f"Enviando permissão tardia para {requester_name}")
