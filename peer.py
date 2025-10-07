@@ -8,16 +8,8 @@ from Pyro5.server import Daemon
 import threading
 import time
 
-RESOURCE_MAX_TIME=10  #ACHO Q DA P GENTE USAR ESSA MACRO P CONTROLAR O TEMPO DO RECURSO NA SEÇÃO CRÍTICA
+RESOURCE_MAX_TIME=10  
 RESPONSE_MAX_TIME=20
-
-''' PROBLEMA ATUAL: quando solicita um recurso os peers ficam travados, nunca retornando ao menu principal
-    Segundo Gemini: Em resumo, a lógica atual cria um ciclo de espera: o PeerB solicita, o PeerA recebe e aprova, 
-    mas o PeerA fica travado esperando algo. Quando o PeerB libera o recurso, ele tenta "despertar" o PeerA chamando solicitar_recurso(),
-    o que só agrava o impasse. A solução é que o PeerA receba uma notificação simples, permitindo que ele mesmo, de forma independente, continue seu processo.
-    Acho que é aquela lógica que a gente tinha visto antes no chat de enviar um 'OK' e o próprio peer chamar seus métodos e não um peer chamar remotamente o 
-    método para o outro.
-'''
 
 ''' thread pra escutar heartbeat -> time.tempo_atual menos ultimo heartbeat se for maior que temporizador = nó falhou (fazer para todos os peers)
     alternativa: ter um threading timer que ativa a checagem acima de tempos em tempos
@@ -37,10 +29,6 @@ class Peer(object):
         self.request_queue = []
         self.lock = threading.Lock()
         self.peers_ativos = []
-
-    """def get_fortune(self, name):
-        return "Hello, {0}. Here is your fortune message:\n" \
-               "Tomorrow's lucky number is 12345678.".format(name)"""
     
     def usar_recurso(self):
         self.resource_time = threading.Timer(RESOURCE_MAX_TIME,self.liberar_recurso)
@@ -56,7 +44,7 @@ class Peer(object):
             self.state="WANTED"
             self.my_request_timestamp=time.time()
         print(f"I want to enter the critical section and access resource")
-        # Mandar msg pra cada peer, exceto pra ele próprio
+        # Mandar mensagem pra cada peer, exceto pra ele próprio
         contador=0
         ns = Pyro5.api.locate_ns()  
         
@@ -88,8 +76,6 @@ class Peer(object):
             self.state="HELD"    
             self.usar_recurso()        
             return True
-
-    # Colocar sleep para simular peer inativo
     
     #@Pyro5.api.oneway
     def receber_pedido(self, requester_name, request_timestamp):
