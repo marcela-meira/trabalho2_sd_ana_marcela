@@ -8,13 +8,22 @@ from Pyro5.server import Daemon
 import threading
 import time
 
-RESOURCE_MAX_TIME=10  
+RESOURCE_MAX_TIME=10  #ACHO Q DA P GENTE USAR ESSA MACRO P CONTROLAR O TEMPO DO RECURSO NA SEÇÃO CRÍTICA
 RESPONSE_MAX_TIME=20
+HEARTBEAT_MAX_TIME=15
 
-''' thread pra escutar heartbeat -> time.tempo_atual menos ultimo heartbeat se for maior que temporizador = nó falhou (fazer para todos os peers)
+''' thread pra escutar heartbeat - time.tempo_atual menos ultimo heartbeat se for maior que temporizador(heartbeat_max_time) = nó falhou 
+                                    (fazer para todos os peers), remove peer da lista de peers ativos
     alternativa: ter um threading timer que ativa a checagem acima de tempos em tempos
                 marca quando recebe e de quem o heartbeat
                 timer checa no tempo (temporizador + uns ms) se recebeu de todos
+    Heartbeat envia olá de tempos em tempos
+    Thread roda um tempo depois do intervalo, contabiliza o ultimo hearbeat de cada peer
+    se o ultimo heartbeat ultrapassar o temporizador quer dizer que nó falhou
+'''
+''' Lógica da fila está incorreta, quando liberar o recurso tem que enviar resposta para todos os peers na fila. 
+    Quando o peer receber essa resposta, ele incrementa o contador de respostas
+    ** Se o método não der retorno tem que ser oneway
 '''
 
 @Pyro5.api.expose
@@ -39,17 +48,18 @@ class Peer(object):
         print(f"Removendo {peer_name} por inatividade ")
         self.peers_ativos.remove(peer_name)
 
+    def heartbeat(self):
+        tempo_atual = time.time()
+
     def solicitar_recurso(self):
         with self.lock:
             self.state="WANTED"
             self.my_request_timestamp=time.time()
         print(f"I want to enter the critical section and access resource")
-        # Mandar mensagem pra cada peer, exceto pra ele próprio
+        # Mandar msg pra cada peer, exceto pra ele próprio
         contador=0
         ns = Pyro5.api.locate_ns()  
         
-        self.peers_ativos.clear()
-
         for peer_name in list(ns.list().keys())[1:]:         
             if peer_name==self.name:
                 continue
@@ -76,21 +86,24 @@ class Peer(object):
             self.state="HELD"    
             self.usar_recurso()        
             return True
+
+    # Colocar sleep para simular peer inativo
     
-    #@Pyro5.api.oneway
+   
     def receber_pedido(self, requester_name, request_timestamp):
         print(f"Solicitação recebida de {requester_name}")
-        if (self.state=="WANTED" and self.my_request_timestamp < request_timestamp) or self.state=="HELD":
+        '''if (self.state=="WANTED" and self.my_request_timestamp < request_timestamp) or self.state=="HELD":
             self.request_queue.append((requester_name, request_timestamp))
             self.request_queue.sort(key=lambda x: (x[1], x[0]))
             print(f"\nSolicitação não aprovada para {requester_name}")
             return False
         else:
            print(f"\nSolicitação aprovada para {requester_name}")
-           return True
+           return True'''
         ## Simulação de peer inativo
-        #time.sleep(30)
-        
+        time.sleep(30)
+    
+
     def liberar_recurso(self):
         with self.lock:
             if self.resource_time and self.resource_time.is_alive():
@@ -154,4 +167,4 @@ if __name__ == "__main__":
     main()
     
 
-    
+
