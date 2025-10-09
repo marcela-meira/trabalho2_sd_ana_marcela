@@ -9,7 +9,7 @@ import time
 
 RESOURCE_MAX_TIME=10  #ACHO Q DA P GENTE USAR ESSA MACRO P CONTROLAR O TEMPO DO RECURSO NA SEÇÃO CRÍTICA
 RESPONSE_MAX_TIME=20
-HEARTBEAT_MAX_TIME=7
+HEARTBEAT_MAX_TIME=5
 
 ''' thread pra escutar heartbeat - time.tempo_atual menos ultimo heartbeat se for maior que temporizador(heartbeat_max_time) = nó falhou 
                                     (fazer para todos os peers), remove peer da lista de peers ativos
@@ -25,7 +25,7 @@ HEARTBEAT_MAX_TIME=7
     ** Se o método não der retorno tem que ser oneway
     ***HEARTBEAT NÃO RETORNA 
     O RECEBIMENTO MARCA O TEMPO ATUAL
-    RECEBEIMENTO CHAMA MONITORA
+    RECEBIMENTO CHAMA MONITORA
     THREAD TA CERTA
 '''
 
@@ -62,7 +62,18 @@ class Peer(object):
                     break  # importante sair, senão dá erro se continuar removendo
 
     def heartbeat(self):
-        return True
+        ns=Pyro5.api.locate_ns()
+        while True:
+            for peer_name in list(ns.list().keys())[1:]:         
+                if peer_name==self.name:
+                    continue    
+                uri = ns.lookup(peer_name)
+                peer_proxy = Pyro5.api.Proxy(uri)
+                # Chama o método RECEPTOR do outro peer, passando nosso nome
+                peer_proxy.receber_heartbeats(self.name)
+            
+            time.sleep(HEARTBEAT_MAX_TIME / 2) # Envia com frequência maior que a checagem
+
         
     def solicitar_recurso(self):
         with self.lock:
@@ -163,33 +174,28 @@ class Peer(object):
                 self.usar_recurso()
 
     @Pyro5.api.oneway
-    def enviar_heartbeats(self):
-        while True:    
-            ns = Pyro5.api.locate_ns()
-            for peer_name in list(ns.list().keys())[1:]:
-                if peer_name==self.name:
-                    continue
-                uri = ns.lookup(peer_name)
-                peer = Pyro5.api.Proxy(uri)
-                #ISSO AQUI É NA FUNÇÃO QUE RECEBE O HEARTBEAT
-                if peer.heartbeat():  # envia o heartbeat
-                    self.ultimo_heartbeat[peer_name] = time.time()
-                
-            time.sleep(5)
+    def receber_heartbeats(self,peer_name):
+        """
+        Método REMOTO passivo. É chamado por outros peers para nos informar
+        que eles estão vivos. Apenas atualiza o timestamp do último contato.
+        """
+        with self.lock:
+            self.ultimo_heartbeat[peer_name] = time.time()
     
-    @Pyro5.api.oneway
     def monitorar_heartbeats(self):
         
         while True:    
             with self.lock:
                 copy=list(self.ultimo_heartbeat.items())
-            tempo_atual = time.time()
-            for peer_name, ultimo_hb in copy:
-                if tempo_atual - ultimo_hb > HEARTBEAT_MAX_TIME:
-                    print(f"{peer_name} falhou (sem heartbeat há muito tempo)")
-                    self.remover_processo(peer_name)
+                tempo_atual = time.time()
+                for peer_name, ultimo_hb in copy:
+                    if tempo_atual - ultimo_hb > HEARTBEAT_MAX_TIME:
+                        print(f"{peer_name} falhou (sem heartbeat há muito tempo)")
+                        self.remover_processo(peer_name)
+                        if peer_name in self.ultimo_heartbeat:
+                            del self.ultimo_heartbeat[peer_name]
 
-            time.sleep(7)
+            time.sleep(5)
 
 
 def main():
@@ -207,7 +213,7 @@ def main():
     print("Ready.")
     threading.Thread(target=daemon.requestLoop, daemon=True).start()    # start the event loop of the server to wait for calls    
     # inicia threads de heartbeat e monitoramento
-    threading.Thread(target=peer.enviar_heartbeats, daemon=True).start()
+    threading.Thread(target=peer.heartbeat, daemon=True).start()
     threading.Thread(target=peer.monitorar_heartbeats, daemon=True).start()
 
 
@@ -236,6 +242,5 @@ def main():
         else:
             print("Opção inválida")
         
-if __name__ == "_main_":
+if __name__ == "__main__":
     main()
-
