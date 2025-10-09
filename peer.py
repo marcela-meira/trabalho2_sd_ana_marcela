@@ -71,6 +71,7 @@ class Peer(object):
                 peer_proxy = Pyro5.api.Proxy(uri)
                 # Chama o método RECEPTOR do outro peer, passando nosso nome
                 peer_proxy.receber_heartbeats(self.name)
+                print(f"Heartbeat enviado para {peer_name}")
             
             time.sleep(HEARTBEAT_MAX_TIME / 2) # Envia com frequência maior que a checagem
 
@@ -181,6 +182,7 @@ class Peer(object):
         """
         with self.lock:
             self.ultimo_heartbeat[peer_name] = time.time()
+            print(f"Heartbeat recebido de {peer_name}")
     
     def monitorar_heartbeats(self):
         
