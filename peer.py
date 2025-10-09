@@ -23,6 +23,10 @@ HEARTBEAT_MAX_TIME=7
 ''' Lógica da fila está incorreta, quando liberar o recurso tem que enviar resposta para todos os peers na fila. 
     Quando o peer receber essa resposta, ele incrementa o contador de respostas
     ** Se o método não der retorno tem que ser oneway
+    ***HEARTBEAT NÃO RETORNA 
+    O RECEBIMENTO MARCA O TEMPO ATUAL
+    RECEBEIMENTO CHAMA MONITORA
+    THREAD TA CERTA
 '''
 
 @Pyro5.api.expose
@@ -167,6 +171,7 @@ class Peer(object):
                     continue
                 uri = ns.lookup(peer_name)
                 peer = Pyro5.api.Proxy(uri)
+                #ISSO AQUI É NA FUNÇÃO QUE RECEBE O HEARTBEAT
                 if peer.heartbeat():  # envia o heartbeat
                     self.ultimo_heartbeat[peer_name] = time.time()
                 
