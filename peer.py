@@ -29,8 +29,11 @@ class Peer(object):
     
     @Pyro5.api.oneway
     def usar_recurso(self):
-        self.resource_time = threading.Timer(RESOURCE_MAX_TIME,self.liberar_recurso)
-        self.resource_time.start()
+        with self.lock:
+            if self.state == "HELD" and self.resource_time and self.resource_time.is_alive():
+                return  # já está usando e timer ativo
+            self.resource_time = threading.Timer(RESOURCE_MAX_TIME,self.liberar_recurso)
+            self.resource_time.start()
     
     @Pyro5.api.oneway
     def remover_processo(self,peer_name):
@@ -38,11 +41,12 @@ class Peer(object):
             print(f"Removendo {peer_name} por inatividade ")
             if peer_name in self.peers_ativos:
                 self.peers_ativos.remove(peer_name)
-                self.contador_respostas-=1
+                if self.contador_respostas > 0:
+                    self.contador_respostas-=1
             self.request_queue = [item for item in self.request_queue if item[0] != peer_name]
             
             #Verificar prioridade 
-            if self.contador_respostas == len(self.peers_ativos) and (not self.request_queue or self.my_request_timestamp < self.request_queue[0][1]):
+            if self.state == "WANTED" and self.contador_respostas == len(self.peers_ativos) and (not self.request_queue or self.my_request_timestamp < self.request_queue[0][1]):
                 print(f"\nVocê pode acessar o recurso")
                 self.state="HELD"
                 self.usar_recurso()
@@ -118,7 +122,7 @@ class Peer(object):
                 self.remover_processo(peer_name)
                 continue
 
-        if self.contador_respostas == len(self.peers_ativos):
+        if self.contador_respostas == len(self.peers_ativos)and (not self.request_queue or self.my_request_timestamp < self.request_queue[0][1]):
             print(f"\nVocê pode acessar o recurso")
             self.state="HELD"
             self.usar_recurso()
@@ -153,7 +157,7 @@ class Peer(object):
             self.state="RELEASED"
             self.my_request_timestamp=0
             print(f"Recurso liberado.")
-            
+            self.request_queue = [item for item in self.request_queue if item[0] != self.name]
             queue_copy = list(self.request_queue)
             self.request_queue.clear()
 
@@ -177,7 +181,7 @@ class Peer(object):
             print(f"Recebi liberação do recurso de {from_peer}")
             self.contador_respostas += 1
             #Verificar prioridade
-            if self.contador_respostas == len(self.peers_ativos) and (not self.request_queue or self.my_request_timestamp < self.request_queue[0][1]):
+            if self.state=="WANTED" and self.contador_respostas == len(self.peers_ativos) and (not self.request_queue or self.my_request_timestamp < self.request_queue[0][1]):
                 print("\nVocê pode acessar o recurso (todas as respostas recebidas).")
                 self.state = "HELD"
                 self.usar_recurso()
