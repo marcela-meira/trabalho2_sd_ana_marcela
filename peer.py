@@ -31,7 +31,7 @@ class Peer(object):
     def usar_recurso(self):
         with self.lock:
             if self.state == "HELD" and self.resource_time and self.resource_time.is_alive():
-                return  # já está usando e timer ativo
+                return  
             self.resource_time = threading.Timer(RESOURCE_MAX_TIME,self.liberar_recurso)
             self.resource_time.start()
     
@@ -122,7 +122,7 @@ class Peer(object):
                 self.remover_processo(peer_name)
                 continue
 
-        if self.contador_respostas == len(self.peers_ativos)and (not self.request_queue or self.my_request_timestamp < self.request_queue[0][1]):
+        if self.contador_respostas == len(self.peers_ativos) and (not self.request_queue or self.my_request_timestamp < self.request_queue[0][1]):
             print(f"\nVocê pode acessar o recurso")
             self.state="HELD"
             self.usar_recurso()
